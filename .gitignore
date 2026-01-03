@@ -29,11 +29,6 @@ _freeze/
 *.html
 !report/*.html
 
-# Keep specific figures for README
-!_output/report/03-simulation_files/
-!_output/report/03-simulation_files/figure-html/
-!_output/report/03-simulation_files/figure-html/simulation-plots-1.png
-
 # Logs
 logs/
 

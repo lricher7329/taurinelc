@@ -13,7 +13,7 @@ This project provides:
 
 The simulation framework generates clinically realistic data with proper truncation and correlation structure:
 
-![Simulation Validation Plots](_output/report/03-simulation_files/figure-html/simulation-plots-1.png)
+![Simulation Validation Plots](docs/images/simulation-plots-1.png)
 
 ## Project Structure
 
@@ -114,6 +114,10 @@ The `_archive/` folder contains the original subprojects that were consolidated:
 - `taurinelc_samplesize/` - Frequentist/Bayesian comparison
 - `taurinelc_ss_simulation/` - Alternative simulation approaches
 - `taurinelc_ess/` - Effect size sensitivity analysis
+
+## Acknowledgments
+
+This project was developed with assistance from [Claude Code](https://claude.ai/code), Anthropic's AI coding assistant.
 
 ## License
 
