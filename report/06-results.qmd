@@ -1,0 +1,123 @@
+---
+title: "Results and Recommendations"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+```
+
+## Summary of Findings
+
+This section summarizes the key findings from the power analysis and interim analysis simulations.
+
+::: {.callout-note}
+## Note
+This chapter will be populated with specific results after running the full simulation pipeline. The structure below shows the expected content.
+:::
+
+## Power Analysis Results
+
+### Required Sample Size
+
+Based on the simulation-based power analysis:
+
+| Metric | Value |
+|--------|-------|
+| Target Power | 90% |
+| Point Estimate (N) | [TBD] |
+| 95% CI Lower | [TBD] |
+| 95% CI Upper | [TBD] |
+
+### Power by Sample Size
+
+[Power curve plot will be inserted here]
+
+### Interpretation
+
+- At N = [X], the trial achieves approximately [Y]% power
+- The conservative estimate (upper CI) suggests N = [Z] for robust power
+- Accounting for 10-15% attrition, recommend enrolling N = [W]
+
+## Interim Analysis Results
+
+### Stopping Probabilities
+
+Under the assumed treatment effects:
+
+| Outcome | Probability |
+|---------|-------------|
+| Early efficacy stop | [TBD]% |
+| Early futility stop | [TBD]% |
+| Continue to max N | [TBD]% |
+| Overall success | [TBD]% |
+
+### Expected Sample Size
+
+- **Mean ESS**: [TBD]
+- **Median ESS**: [TBD]
+- **Reduction vs. fixed design**: [TBD]%
+
+### Stage-wise Analysis
+
+| Interim (N) | Cumulative Stop % | Efficacy | Futility |
+|-------------|-------------------|----------|----------|
+| 120 | [TBD] | [TBD] | [TBD] |
+| 180 | [TBD] | [TBD] | [TBD] |
+| 240 | [TBD] | [TBD] | [TBD] |
+| 300 | [TBD] | [TBD] | [TBD] |
+| 360 | [TBD] | [TBD] | [TBD] |
+| 420 | [TBD] | [TBD] | [TBD] |
+| 480 | [TBD] | [TBD] | [TBD] |
+
+## Recommendations
+
+### Primary Recommendation
+
+Based on the analysis, we recommend:
+
+1. **Maximum sample size**: N = [TBD]
+2. **Expected enrollment**: N = [TBD] (accounting for expected early stopping)
+3. **Budget for**: N = [TBD] (upper CI + attrition buffer)
+
+### Design Features
+
+The recommended trial design includes:
+
+- **Randomization**: 2:1 (Treatment:Control)
+- **Interim analyses**: Every 60 participants starting at N = 120
+- **Efficacy stopping**: When P(benefit) > 95% for both outcomes
+- **Futility stopping**: When P(benefit) < 10% for either outcome
+
+### Statistical Analysis Plan
+
+1. **Primary analysis**: Bayesian bivariate model at final analysis
+2. **Interim analyses**: Pre-specified stopping boundaries
+3. **Sensitivity analyses**:
+   - Alternative prior specifications
+   - Per-protocol analysis
+   - Subgroup analyses (severity, duration of Long COVID)
+
+## Limitations
+
+### Simulation Assumptions
+
+1. **Treatment effects**: Based on clinical judgment, not prior data
+2. **Correlation**: Assumed 0.2 between outcomes
+3. **Baseline distributions**: May differ from actual LC population
+4. **Dropout**: Not explicitly modeled
+
+### Generalizability
+
+- Results depend on the assumed effect sizes
+- Actual power may differ if true effects are smaller/larger
+- Sensitivity analyses (next chapter) explore robustness
+
+## Next Steps
+
+1. **Review assumptions**: Clinical team should validate effect size assumptions
+2. **Finalize protocol**: Incorporate recommended sample size
+3. **DMC planning**: Establish data monitoring committee procedures
+4. **Pre-registration**: Register trial with interim analysis plan

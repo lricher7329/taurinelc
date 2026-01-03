@@ -1,0 +1,166 @@
+---
+title: "Power Analysis"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/simulate_data.R")
+source("../R/fit_model.R")
+source("../R/power_analysis.R")
+source("../R/visualization.R")
+```
+
+## Objective
+
+Determine the sample size required to achieve **90% power** to detect clinically meaningful treatment effects on both co-primary outcomes using Bayesian decision criteria.
+
+## Methodology
+
+### Simulation-Based Power Estimation
+
+Power is estimated through Monte Carlo simulation:
+
+1. For each candidate sample size $n$:
+   a. Simulate $R$ trial datasets under the alternative hypothesis
+   b. Fit the Bayesian model to each dataset
+   c. Evaluate the decision criterion
+   d. Calculate power as proportion of "successful" trials
+
+2. Fit a logistic regression to the power curve
+3. Solve for the sample size achieving 90% power
+4. Calculate confidence interval using the delta method
+
+### Power Calculation
+
+For sample size $n$:
+
+$$
+\text{Power}(n) = \frac{1}{R} \sum_{r=1}^{R} I\left(\frac{P_{\text{TMT}}^{(r)} + P_{\text{MFIS}}^{(r)}}{2} \geq 0.95\right)
+$$
+
+Where:
+- $P_{\text{TMT}}^{(r)} = P(\beta_{\text{TMT},2} < 0 \,|\, \text{data}^{(r)})$
+- $P_{\text{MFIS}}^{(r)} = P(\beta_{\text{MFIS},2} < 0 \,|\, \text{data}^{(r)})$
+
+## Sample Size Grid
+
+```{r}
+#| label: sample-sizes
+cat("Sample sizes to evaluate:\n")
+cat(sprintf("  %s\n", paste(sim_params$sample_sizes, collapse = ", ")))
+cat(sprintf("\nReplications per sample size: %d\n", sim_params$n_reps))
+```
+
+## Power Analysis Results
+
+::: {.callout-warning}
+## Computational Note
+Running the full power analysis requires significant computation time (potentially hours depending on the number of replications). For initial exploration, use fewer replications.
+:::
+
+```{r}
+#| label: run-power-analysis
+#| eval: false
+
+# Compile model
+model <- compile_model()
+
+# Run power analysis (cached)
+power_results <- compute_with_cache(
+  "power_analysis_main.rds",
+  function() {
+    estimate_power_curve(
+      sample_sizes = sim_params$sample_sizes,
+      model = model,
+      n_reps = sim_params$n_reps,
+      parallel = TRUE
+    )
+  }
+)
+
+# Estimate required N
+required_n <- estimate_required_n(power_results)
+
+# Save results
+saveRDS(list(power = power_results, required_n = required_n),
+        "../data/cached_results/power_full.rds")
+```
+
+### Power Curve
+
+```{r}
+#| label: power-curve-plot
+#| eval: false
+plot_power_curve(power_results, required_n, target_power = 0.90)
+```
+
+### Summary Statistics
+
+```{r}
+#| label: power-summary
+#| eval: false
+print_power_summary(power_results, required_n)
+```
+
+## Sample Size Determination
+
+### Logistic Regression Model
+
+The relationship between sample size and power is modeled as:
+
+$$
+\text{logit}(\text{Power}) = \beta_0 + \beta_1 \cdot n
+$$
+
+The required sample size for target power $\pi$ is:
+
+$$
+n^* = \frac{\text{logit}(\pi) - \beta_0}{\beta_1}
+$$
+
+### Confidence Interval (Delta Method)
+
+The variance of $n^*$ is estimated using the delta method:
+
+$$
+\text{Var}(n^*) = \left(\frac{\partial n^*}{\partial \beta_0}\right)^2 \text{Var}(\beta_0) + \left(\frac{\partial n^*}{\partial \beta_1}\right)^2 \text{Var}(\beta_1) + 2 \frac{\partial n^*}{\partial \beta_0} \frac{\partial n^*}{\partial \beta_1} \text{Cov}(\beta_0, \beta_1)
+$$
+
+Where:
+- $\frac{\partial n^*}{\partial \beta_0} = -\frac{1}{\beta_1}$
+- $\frac{\partial n^*}{\partial \beta_1} = -\frac{\text{logit}(\pi) - \beta_0}{\beta_1^2}$
+
+## Wilson Score Confidence Intervals
+
+For each sample size, the power estimate has a 95% Wilson score confidence interval:
+
+$$
+\frac{\hat{p} + \frac{z^2}{2n} \pm z\sqrt{\frac{\hat{p}(1-\hat{p})}{n} + \frac{z^2}{4n^2}}}{1 + \frac{z^2}{n}}
+$$
+
+This interval provides better coverage than the normal approximation, especially for proportions near 0 or 1.
+
+## Example: Quick Power Check
+
+For demonstration, here's a quick power check with minimal replications:
+
+```{r}
+#| label: quick-power
+#| eval: false
+
+# Quick check with fewer replications
+model <- compile_model()
+quick_power <- simulate_power(n = 300, model = model, n_reps = 10, parallel = FALSE)
+cat(sprintf("Quick power estimate at N=300: %.1f%%\n", quick_power$power * 100))
+```
+
+## Recommendations
+
+Based on the power analysis:
+
+1. **Primary recommendation**: Sample size of N = [TBD] provides 90% power
+2. **Conservative estimate**: Upper CI bound of N = [TBD]
+3. **Consider attrition**: Add 10-15% for expected dropout

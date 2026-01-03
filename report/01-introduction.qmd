@@ -1,0 +1,127 @@
+---
+title: "Introduction"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+```
+
+## Clinical Context
+
+### Long COVID Overview
+
+Long COVID, also known as Post-Acute Sequelae of SARS-CoV-2 (PASC), affects a significant proportion of individuals following COVID-19 infection. Common symptoms include:
+
+-   Persistent fatigue
+-   Cognitive dysfunction ("brain fog")
+-   Sleep disturbances
+-   Reduced exercise tolerance
+
+These symptoms can persist for months or years, significantly impacting quality of life and functional capacity.
+
+### Taurine as a Potential Intervention
+
+Taurine is a conditionally essential amino acid with multiple physiological roles:
+
+-   **Antioxidant properties**: May reduce oxidative stress associated with Long COVID
+-   **Neuroprotective effects**: Potential to improve cognitive function
+-   **Anti-inflammatory action**: May help address systemic inflammation
+-   **Energy metabolism**: Could improve mitochondrial function and reduce fatigue
+
+This trial investigates whether taurine supplementation can improve cognitive function and reduce fatigue in Long COVID patients.
+
+## Co-Primary Outcomes
+
+This trial uses two co-primary endpoints, requiring both to show benefit for trial success:
+
+### TMT B/A Ratio (Trail Making Test)
+
+The Trail Making Test is a neuropsychological measure of cognitive function:
+
+-   **What it measures**: Executive function, processing speed, mental flexibility
+-   **Scoring**: Ratio of Part B to Part A completion times
+-   **Interpretation**: Lower values indicate better cognitive function
+-   **Clinical range**: 0.9 - 5.0
+-   **MCID**: 0.5 units
+
+```{r}
+#| label: tmt-params
+cat(sprintf("Baseline parameters:\n"))
+cat(sprintf("  Mean: %.2f\n", outcomes$tmt$mean))
+cat(sprintf("  SD: %.2f\n", outcomes$tmt$sd))
+cat(sprintf("  Adjusted mean (for LC population): %.2f\n", get_adjusted_mean("tmt")))
+```
+
+### MFIS (Modified Fatigue Impact Scale)
+
+The MFIS is a validated measure of fatigue severity:
+
+-   **What it measures**: Physical, cognitive, and psychosocial fatigue
+-   **Scoring**: Sum of 21 items, each rated 0-4
+-   **Interpretation**: Lower values indicate less fatigue
+-   **Clinical range**: 0 - 84
+-   **MCID**: 10 points
+
+```{r}
+#| label: mfis-params
+cat(sprintf("Baseline parameters:\n"))
+cat(sprintf("  Mean: %.1f\n", outcomes$mfis$mean))
+cat(sprintf("  SD: %.1f\n", outcomes$mfis$sd))
+cat(sprintf("  Adjusted mean (for LC population): %.1f\n", get_adjusted_mean("mfis")))
+```
+
+## Trial Design
+
+### Randomization
+
+Participants are randomized in a **2:1 ratio** (Treatment:Control):
+
+-   Treatment group: 67% of participants
+-   Control group: 33% of participants
+
+This unequal allocation maximizes information about the treatment effect while maintaining adequate control group size.
+
+### Sample Size Considerations
+
+The primary goal of this simulation study is to determine the sample size required to achieve:
+
+-   **90% power** to detect clinically meaningful effects on both outcomes
+-   Using a **Bayesian decision criterion** of 95% posterior probability
+
+### Follow-up Duration
+
+Participants are assessed at:
+
+-   **Baseline**: Pre-randomization assessment
+-   **3 months**: Primary endpoint assessment
+
+## Success Criteria
+
+### Primary Decision Rule
+
+The trial will be considered successful if:
+
+$$P(\text{TMT effect} < 0 \,|\, \text{data}) \geq 0.95 \quad \text{AND} \quad P(\text{MFIS effect} < 0 \,|\, \text{data}) \geq 0.95$$
+
+This requires strong evidence of benefit for **both** co-primary outcomes.
+
+### Interim Stopping Rules
+
+The trial includes planned interim analyses for:
+
+-   **Early efficacy**: Stop if overwhelming evidence of benefit for both outcomes
+-   **Futility**: Stop if either outcome shows negligible probability of benefit
+
+These stopping rules are detailed in @sec-interim-analysis.
+
+## Simulation Objectives
+
+This simulation study aims to:
+
+1.  Estimate the required sample size for 90% power
+2.  Evaluate the operating characteristics of the interim stopping rules
+3.  Calculate the expected sample size under various scenarios
+4.  Assess sensitivity to prior specifications and effect size assumptions

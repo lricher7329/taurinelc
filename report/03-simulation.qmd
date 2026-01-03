@@ -1,0 +1,166 @@
+---
+title: "Data Simulation Methodology"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/simulate_data.R")
+source("../R/visualization.R")
+```
+
+## Overview
+
+The simulation generates realistic clinical trial data that reflects:
+
+1. Baseline characteristics of Long COVID patients
+2. Expected treatment effects based on clinical assumptions
+3. Correlation between outcomes
+4. Natural variability and regression to the mean
+
+## Baseline Generation
+
+### TMT B/A Ratio
+
+Baseline values are drawn from a truncated normal distribution:
+
+$$
+\text{TMT}_{\text{base}} \sim \text{TruncNormal}(\mu = 2.42, \sigma = 1.07, a = 0.9, b = 5.0)
+$$
+
+```{r}
+#| label: tmt-baseline
+cat(sprintf("TMT Baseline Parameters:\n"))
+cat(sprintf("  Population mean: %.2f\n", outcomes$tmt$mean))
+cat(sprintf("  Adjustment for LC severity: +%.2f\n", outcomes$tmt$baseline_adjustment))
+cat(sprintf("  Adjusted mean: %.2f\n", get_adjusted_mean("tmt")))
+cat(sprintf("  Clinical bounds: [%.1f, %.1f]\n",
+            outcomes$tmt$range[1], outcomes$tmt$range[2]))
+```
+
+### MFIS
+
+$$
+\text{MFIS}_{\text{base}} \sim \text{TruncNormal}(\mu = 33.7, \sigma = 21.1, a = 0, b = 84)
+$$
+
+```{r}
+#| label: mfis-baseline
+cat(sprintf("MFIS Baseline Parameters:\n"))
+cat(sprintf("  Population mean: %.1f\n", outcomes$mfis$mean))
+cat(sprintf("  Adjustment for LC severity: +%.0f\n", outcomes$mfis$baseline_adjustment))
+cat(sprintf("  Adjusted mean: %.1f\n", get_adjusted_mean("mfis")))
+cat(sprintf("  Clinical bounds: [%.0f, %.0f]\n",
+            outcomes$mfis$range[1], outcomes$mfis$range[2]))
+```
+
+## Treatment Assignment
+
+Participants are randomly assigned with 2:1 allocation:
+
+$$
+\text{treat}_i \sim \text{Bernoulli}(p = 2/3)
+$$
+
+This results in approximately 67% treatment and 33% control.
+
+## Follow-up Outcomes
+
+### Expected Mean Model
+
+The expected 3-month outcome incorporates:
+
+1. **Baseline value**: Anchor point with regression adjustment
+2. **Natural variation**: Probabilistic regression-to-mean effects
+3. **Treatment effect**: Fixed reduction for treated participants
+
+$$
+\mu_i = \text{baseline}_i + \text{adjustment}_i + \gamma \cdot \text{treat}_i
+$$
+
+### Treatment Effects
+
+```{r}
+#| label: treatment-effects
+cat("True Treatment Effects (used in simulation):\n")
+cat(sprintf("  TMT: %.2f units (lower = better)\n", true_effects$tmt$gamma_treat))
+cat(sprintf("  MFIS: %.1f points (lower = better)\n", true_effects$mfis$gamma_treat))
+```
+
+### Correlated Errors
+
+Residuals are drawn from a bivariate normal distribution:
+
+$$
+\begin{pmatrix} \epsilon_{\text{TMT}} \\ \epsilon_{\text{MFIS}} \end{pmatrix} \sim N_2\left( \begin{pmatrix} 0 \\ 0 \end{pmatrix}, \Sigma \right)
+$$
+
+Where:
+
+$$
+\Sigma = \begin{pmatrix} 0.5^2 & 0.2 \cdot 0.5 \cdot 8 \\ 0.2 \cdot 0.5 \cdot 8 & 8^2 \end{pmatrix}
+$$
+
+This implies a correlation of $\rho = 0.2$ between outcome residuals.
+
+### Truncation
+
+Final outcomes are truncated to clinical bounds:
+
+$$
+\text{TMT}_{3m} = \max(0.9, \min(5.0, \mu_{\text{TMT}} + \epsilon_{\text{TMT}}))
+$$
+
+$$
+\text{MFIS}_{3m} = \max(0, \min(84, \mu_{\text{MFIS}} + \epsilon_{\text{MFIS}}))
+$$
+
+## Example Simulation
+
+```{r}
+#| label: example-simulation
+#| fig-height: 8
+set.seed(42)
+example_data <- simulate_trial_data(n = 200)
+validate_simulation(example_data)
+```
+
+### Visualization
+
+```{r}
+#| label: simulation-plots
+#| fig-height: 8
+#| fig-width: 10
+plot_simulation_validation(example_data)
+```
+
+## Validation Checks
+
+The simulation is validated by checking:
+
+1. **Treatment allocation**: Proportion close to 2/3
+2. **Baseline distributions**: Means and SDs match targets
+3. **Range constraints**: All values within clinical bounds
+4. **Correlation structure**: Outcome correlation approximately 0.2
+5. **Treatment effects**: Crude differences in expected direction
+
+```{r}
+#| label: multiple-validation
+# Validate across multiple simulations
+set.seed(123)
+multi_sims <- simulate_multiple(n_datasets = 10, n = 300)
+
+# Check treatment proportions
+treat_props <- sapply(multi_sims, function(d) mean(d$treat))
+cat(sprintf("Treatment proportions across 10 simulations:\n"))
+cat(sprintf("  Mean: %.3f (target: 0.667)\n", mean(treat_props)))
+cat(sprintf("  Range: [%.3f, %.3f]\n", min(treat_props), max(treat_props)))
+
+# Check correlations
+cors <- sapply(multi_sims, function(d) cor(d$tmt_3m, d$mfis_3m))
+cat(sprintf("\nOutcome correlations:\n"))
+cat(sprintf("  Mean: %.3f (target: ~0.2)\n", mean(cors)))
+cat(sprintf("  Range: [%.3f, %.3f]\n", min(cors), max(cors)))
+```

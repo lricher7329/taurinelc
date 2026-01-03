@@ -1,0 +1,165 @@
+---
+title: "Bayesian Model Specification"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+```
+
+## Statistical Model
+
+### Bivariate Outcome Model
+
+We model the two co-primary outcomes jointly using a bivariate normal distribution. For participant $i$:
+
+$$
+\begin{pmatrix} \text{TMT}_{3m,i} \\ \text{MFIS}_{3m,i} \end{pmatrix} \sim N_2\left( \begin{pmatrix} \mu_{\text{TMT},i} \\ \mu_{\text{MFIS},i} \end{pmatrix}, \Sigma \right)
+$$
+
+Where the mean vectors are modeled as:
+
+$$
+\mu_{\text{TMT},i} = \beta_{\text{TMT},0} + \beta_{\text{TMT},1} \cdot z_{\text{TMT,base},i} + \beta_{\text{TMT},2} \cdot \text{treat}_i
+$$
+
+$$
+\mu_{\text{MFIS},i} = \beta_{\text{MFIS},0} + \beta_{\text{MFIS},1} \cdot z_{\text{MFIS,base},i} + \beta_{\text{MFIS},2} \cdot \text{treat}_i
+$$
+
+Where:
+
+- $z_{\text{base}}$ = standardized baseline value (z-score)
+- $\text{treat}_i$ = treatment indicator (1 = treatment, 0 = control)
+- $\beta_2$ = treatment effect (negative = improvement)
+
+### Covariance Structure
+
+The covariance matrix is parameterized using a Cholesky decomposition:
+
+$$
+\Sigma = L_\Sigma L_\Sigma^T \quad \text{where} \quad L_\Sigma = \text{diag}(\sigma) \cdot L_\Omega
+$$
+
+This ensures positive definiteness and stable computation.
+
+## Prior Specifications
+
+### Regression Coefficients
+
+```{r}
+#| label: priors-table
+#| echo: false
+priors <- data.frame(
+  Parameter = c("Intercepts (TMT, MFIS)",
+                "Baseline effects",
+                "Treatment effects"),
+  Prior = c("Normal(0, 2)",
+            "Normal(0, 2)",
+            "Normal(0, 2)"),
+  Rationale = c("Weakly informative, centered at no effect",
+                "Allows for range of baseline-outcome relationships",
+                "Allows both positive and negative treatment effects")
+)
+knitr::kable(priors, caption = "Prior distributions for regression coefficients")
+```
+
+### Variance Components
+
+- **Residual SDs** ($\sigma$): Student-t(3, 0, 2.5) - regularizing prior
+- **Correlation matrix** ($L_\Omega$): LKJ(2) - weakly informative
+
+The LKJ prior with $\eta = 2$ places modest regularization toward correlation = 0.
+
+## Stan Model Implementation
+
+The canonical model (`coprimary_model_v4.stan`) implements:
+
+```stan
+data {
+  int<lower=1> N;
+  array[N] int<lower=0, upper=1> treat;
+  vector[N] tmt_base;
+  vector[N] mfis_base;
+  vector[N] tmt_3m;
+  vector[N] mfis_3m;
+}
+
+transformed data {
+  // Standardize baseline measurements
+  vector[N] tmt_base_z = (tmt_base - mean(tmt_base)) / sd(tmt_base);
+  vector[N] mfis_base_z = (mfis_base - mean(mfis_base)) / sd(mfis_base);
+}
+
+parameters {
+  vector[3] beta_tmt;   // [intercept, baseline, treatment]
+  vector[3] beta_mfis;
+  vector<lower=0>[2] sigma;
+  cholesky_factor_corr[2] L_Omega;
+}
+
+model {
+  // Priors
+  beta_tmt ~ normal(0, 2);
+  beta_mfis ~ normal(0, 2);
+  sigma ~ student_t(3, 0, 2.5);
+  L_Omega ~ lkj_corr_cholesky(2);
+
+  // Likelihood (bivariate normal)
+  // ... [see full model in stan/coprimary_model_v4.stan]
+}
+```
+
+## Decision Rules
+
+### Trial Success
+
+The trial is successful if:
+
+$$
+P(\beta_{\text{TMT},2} < 0 \,|\, \text{data}) \geq 0.95 \quad \text{AND} \quad P(\beta_{\text{MFIS},2} < 0 \,|\, \text{data}) \geq 0.95
+$$
+
+This is operationalized using the combined probability:
+
+$$
+\text{Combined} = \frac{P(\beta_{\text{TMT},2} < 0) + P(\beta_{\text{MFIS},2} < 0)}{2} \geq 0.95
+$$
+
+### Interim Stopping
+
+At each interim analysis:
+
+- **Efficacy stop**: Both $P(\beta < 0) > 0.95$
+- **Futility stop**: Either $P(\beta < 0) < 0.10$
+
+## MCMC Configuration
+
+```{r}
+#| label: mcmc-config
+cat("Stan MCMC Settings:\n")
+cat(sprintf("  Chains: %d\n", stan_options$chains))
+cat(sprintf("  Warmup iterations: %d\n", stan_options$iter_warmup))
+cat(sprintf("  Sampling iterations: %d\n", stan_options$iter_sampling))
+cat(sprintf("  Adapt delta: %.2f\n", stan_options$adapt_delta))
+cat(sprintf("  Max tree depth: %d\n", stan_options$max_treedepth))
+```
+
+These settings are chosen to:
+
+- Ensure adequate mixing (8000 post-warmup samples total)
+- Reduce divergent transitions (high adapt_delta)
+- Allow complex posterior exploration (high max_treedepth)
+
+## Convergence Diagnostics
+
+We monitor the following diagnostics:
+
+| Diagnostic | Acceptable Range | Interpretation |
+|------------|------------------|----------------|
+| Rhat | < 1.01 | Chain convergence |
+| ESS (bulk) | > 400 | Effective sample size |
+| ESS (tail) | > 400 | Tail probability precision |
+| Divergences | 0 | No numerical issues |

@@ -1,0 +1,39 @@
+project:
+  type: book
+  output-dir: _output
+
+book:
+  title: "Bayesian Sample Size Determination for Taurine in Long COVID"
+  subtitle: "A Simulation-Based Power Analysis with Interim Stopping Rules"
+  author: "Clinical Trials Team"
+  date: today
+  chapters:
+    - index.qmd
+    - report/01-introduction.qmd
+    - report/02-methods.qmd
+    - report/03-simulation.qmd
+    - report/04-power-analysis.qmd
+    - report/05-interim-analysis.qmd
+    - report/06-results.qmd
+    - report/07-sensitivity.qmd
+
+format:
+  html:
+    theme: cosmo
+    code-fold: true
+    code-tools: true
+    toc: true
+    toc-depth: 3
+    number-sections: true
+
+execute:
+  cache: true
+  freeze: auto
+  warning: false
+  message: false
+
+knitr:
+  opts_chunk:
+    fig.width: 8
+    fig.height: 6
+    dpi: 150

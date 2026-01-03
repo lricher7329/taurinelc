@@ -1,0 +1,204 @@
+---
+title: "Sensitivity Analyses"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/simulate_data.R")
+source("../R/fit_model.R")
+source("../R/power_analysis.R")
+source("../R/visualization.R")
+```
+
+## Overview
+
+Sensitivity analyses evaluate how robust the power estimates are to:
+
+1. **Prior specifications**: Different prior distributions
+2. **Effect size assumptions**: Smaller or larger treatment effects
+3. **Correlation structure**: Different outcome correlations
+4. **Model specification**: Alternative Stan models
+
+## Prior Sensitivity
+
+### LKJ Correlation Prior
+
+The canonical model uses LKJ(2) for the correlation matrix. We compare with:
+
+- **LKJ(1)**: Uniform on correlations (less informative)
+- **LKJ(4)**: Stronger regularization toward 0 (more informative)
+
+```{r}
+#| label: lkj-comparison
+#| eval: false
+
+# This would require running simulations with modified Stan models
+# See stan/coprimary_model_v3.stan for LKJ(4) specification
+
+lkj_scenarios <- list(
+  "LKJ(1)" = "coprimary_model_lkj1.stan",  # Would need to create
+  "LKJ(2)" = "coprimary_model_v4.stan",
+  "LKJ(4)" = "coprimary_model_v3.stan"
+)
+```
+
+### Treatment Effect Prior
+
+The prior on treatment effects is Normal(0, 2). Alternatives:
+
+- **Normal(0, 1)**: More skeptical of large effects
+- **Normal(0, 5)**: More permissive of large effects
+
+## Effect Size Sensitivity
+
+### Scenario Grid
+
+We evaluate power across a grid of effect size combinations:
+
+```{r}
+#| label: effect-grid
+effect_grid <- expand.grid(
+  tmt_effect = c(-0.05, -0.10, -0.15),  # TMT reductions
+  mfis_effect = c(-2, -3, -5)            # MFIS reductions
+)
+
+knitr::kable(
+  effect_grid,
+  col.names = c("TMT Effect", "MFIS Effect"),
+  caption = "Effect size scenarios for sensitivity analysis"
+)
+```
+
+### Pessimistic Scenario
+
+Smaller effects than assumed:
+
+- TMT: -0.05 (half of assumed)
+- MFIS: -2 (two-thirds of assumed)
+
+**Expected impact**: Lower power, larger required N
+
+### Optimistic Scenario
+
+Larger effects than assumed:
+
+- TMT: -0.15 (50% larger)
+- MFIS: -5 (67% larger)
+
+**Expected impact**: Higher power, smaller required N
+
+```{r}
+#| label: run-sensitivity
+#| eval: false
+
+# Function to run sensitivity analysis for a given effect scenario
+run_effect_sensitivity <- function(tmt_effect, mfis_effect, model, n_reps = 50) {
+  # Modify true_effects
+  modified_effects <- true_effects
+  modified_effects$tmt$gamma_treat <- tmt_effect
+  modified_effects$mfis$gamma_treat <- mfis_effect
+
+  # Run power curve with modified parameters
+  # (Would need to pass modified effects to simulate_trial_data)
+
+  message(sprintf("Running sensitivity: TMT=%.2f, MFIS=%.1f",
+                  tmt_effect, mfis_effect))
+}
+
+# Example: Run sensitivity grid
+# sensitivity_results <- lapply(1:nrow(effect_grid), function(i) {
+#   run_effect_sensitivity(
+#     effect_grid$tmt_effect[i],
+#     effect_grid$mfis_effect[i],
+#     model = compile_model()
+#   )
+# })
+```
+
+## Correlation Sensitivity
+
+### Scenarios
+
+The baseline correlation between outcomes is assumed to be 0.2. We test:
+
+- **Low correlation (0.1)**: More independent outcomes
+- **Moderate correlation (0.3)**: Somewhat related outcomes
+- **High correlation (0.5)**: Strongly related outcomes
+
+### Impact on Power
+
+Higher correlation generally:
+- Reduces effective sample size for independent information
+- May increase power if treatment affects both outcomes similarly
+- Changes the interpretation of the joint success criterion
+
+## Model Comparison
+
+### Available Models
+
+| Model | Description |
+|-------|-------------|
+| `coprimary_model_v4.stan` | Canonical - standardized baseline, LKJ(2) |
+| `coprimary_model_v3.stan` | Centered baseline, LKJ(4) |
+
+### Comparison Approach
+
+```{r}
+#| label: model-comparison
+#| eval: false
+
+# Compare power estimates between models
+models <- list(
+  "v4 (canonical)" = compile_model("coprimary_model_v4.stan"),
+  "v3 (LKJ4)" = compile_model("coprimary_model_v3.stan")
+)
+
+# Run power analysis for each model
+# model_comparison <- lapply(models, function(m) {
+#   estimate_power_curve(
+#     sample_sizes = c(240, 360),  # Subset for quick comparison
+#     model = m,
+#     n_reps = 50
+#   )
+# })
+```
+
+## Results Summary
+
+::: {.callout-note}
+## Note
+Sensitivity analysis results will be populated after running the full simulation pipeline.
+:::
+
+### Effect Size Impact
+
+| Scenario | TMT Effect | MFIS Effect | Required N | Change |
+|----------|------------|-------------|------------|--------|
+| Pessimistic | -0.05 | -2 | [TBD] | +[X]% |
+| Base case | -0.10 | -3 | [TBD] | - |
+| Optimistic | -0.15 | -5 | [TBD] | -[Y]% |
+
+### Prior Impact
+
+| Prior | Required N | Difference |
+|-------|------------|------------|
+| LKJ(1) | [TBD] | [TBD] |
+| LKJ(2) | [TBD] | - |
+| LKJ(4) | [TBD] | [TBD] |
+
+## Conclusions
+
+### Robustness Assessment
+
+1. **Effect size**: Power is most sensitive to [TMT/MFIS] effect
+2. **Priors**: [Minimal/Moderate] impact of prior specification
+3. **Correlation**: [Description of correlation impact]
+
+### Recommendations
+
+1. **Conservative planning**: Use [scenario] for sample size planning
+2. **Monitoring**: Track recruitment and interim results
+3. **Adaptation**: Consider sample size re-estimation if effects differ

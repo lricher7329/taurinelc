@@ -1,0 +1,79 @@
+---
+title: "Executive Summary"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("R/_setup.R")
+source("R/parameters.R")
+```
+
+## Study Overview
+
+This report presents a Bayesian simulation-based sample size determination for a clinical trial investigating **taurine supplementation in Long COVID patients**. The trial uses two co-primary endpoints:
+
+1. **TMT B/A Ratio** (Trail Making Test) - Cognitive function measure
+2. **MFIS** (Modified Fatigue Impact Scale) - Fatigue severity measure
+
+## Key Design Features
+
+- **Randomization**: 2:1 (Treatment:Control)
+- **Bayesian decision threshold**: 95% posterior probability of benefit
+- **Interim analyses**: Every 60 participants after initial 120
+- **Stopping rules**:
+  - Efficacy: Both outcomes show P(benefit) > 0.95
+  - Futility: Either outcome shows P(benefit) < 0.10
+
+## Trial Parameters
+
+```{r}
+#| label: parameters-summary
+print_parameters()
+```
+
+## Report Structure
+
+This report contains the following chapters:
+
+1. **Introduction**: Clinical context and study rationale
+2. **Methods**: Bayesian model specification and decision rules
+3. **Simulation**: Data generation methodology and validation
+4. **Power Analysis**: Sample size determination for 90% power
+5. **Interim Analysis**: Adaptive design with stopping rules
+6. **Results**: Final recommendations
+7. **Sensitivity**: Prior and effect size sensitivity analyses
+
+## Quick Results
+
+::: {.callout-note}
+## Note
+The detailed simulation results are presented in subsequent chapters. This executive summary will be updated with key findings after running the full analysis pipeline.
+:::
+
+To run the full analysis, execute:
+
+```r
+source("R/_setup.R")
+source("R/parameters.R")
+source("R/simulate_data.R")
+source("R/fit_model.R")
+source("R/power_analysis.R")
+source("R/interim_analysis.R")
+source("R/visualization.R")
+
+# Compile model
+model <- compile_model()
+
+# Run power analysis (computationally intensive)
+power_results <- estimate_power_curve(
+  sample_sizes = sim_params$sample_sizes,
+  n_reps = sim_params$n_reps,
+  model = model,
+  parallel = TRUE
+)
+
+# Estimate required N
+required_n <- estimate_required_n(power_results)
+print_power_summary(power_results, required_n)
+```

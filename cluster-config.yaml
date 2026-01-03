@@ -1,0 +1,32 @@
+Region: ca-central-1
+Image:
+  Os: ubuntu2204
+
+HeadNode:
+  InstanceType: t3.large  # 8GB RAM - avoids swap for CmdStan compilation
+  Networking:
+    SubnetId: subnet-0b87505eec06f2fe9
+  Ssh:
+    KeyName: pcluster-key
+
+Scheduling:
+  Scheduler: slurm
+  SlurmQueues:
+    - Name: compute
+      ComputeResources:
+        - Name: c5xlarge
+          InstanceType: c5.xlarge
+          MinCount: 0
+          MaxCount: 10
+      Networking:
+        SubnetIds:
+          - subnet-0b87505eec06f2fe9
+
+SharedStorage:
+  - MountDir: /shared
+    Name: shared-storage
+    StorageType: Ebs
+    EbsSettings:
+      Size: 50
+      VolumeType: gp3
+      DeletionPolicy: Retain  # Keep EBS volume when cluster is deleted

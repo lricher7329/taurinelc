@@ -1,0 +1,56 @@
+# Archived projects
+_archive/
+
+# Secrets and credentials
+.secrets/
+
+# Quarto internal
+.quarto/
+
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Stan compiled models (platform-specific binaries)
+stan/coprimary_model_v3
+stan/coprimary_model_v4
+
+# Python virtual environment
+.venv/
+
+# Quarto output and cache
+_output/
+_freeze/
+*_files/
+*_cache/
+*.html
+!report/*.html
+
+# Keep specific figures for README
+!_output/report/03-simulation_files/
+!_output/report/03-simulation_files/figure-html/
+!_output/report/03-simulation_files/figure-html/simulation-plots-1.png
+
+# Logs
+logs/
+
+# Cached results (large RDS files)
+# Uncomment to exclude from git:
+# data/cached_results/*.rds
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,0 +1,174 @@
+---
+title: "Interim Analysis"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/simulate_data.R")
+source("../R/fit_model.R")
+source("../R/interim_analysis.R")
+source("../R/visualization.R")
+```
+
+## Adaptive Design Overview
+
+The trial includes planned interim analyses to allow for:
+
+1. **Early termination for efficacy**: Stop if overwhelming evidence of benefit
+2. **Early termination for futility**: Stop if negligible probability of success
+3. **Sample size efficiency**: Reduce expected sample size when possible
+
+## Interim Analysis Schedule
+
+```{r}
+#| label: interim-schedule
+schedule <- seq(sim_params$initial_n, sim_params$max_n, by = sim_params$interim_increment)
+cat("Planned interim analyses:\n")
+for (i in seq_along(schedule)) {
+  cat(sprintf("  Interim %d: N = %d\n", i, schedule[i]))
+}
+```
+
+## Stopping Rules
+
+### Efficacy Stopping
+
+The trial stops early for efficacy if **both** outcomes show strong evidence of benefit:
+
+$$
+P(\beta_{\text{TMT},2} < 0 \,|\, \text{data}) > 0.95 \quad \text{AND} \quad P(\beta_{\text{MFIS},2} < 0 \,|\, \text{data}) > 0.95
+$$
+
+**Rationale**: Both co-primary endpoints must show benefit for the intervention to be clinically meaningful.
+
+### Futility Stopping
+
+The trial stops early for futility if **either** outcome shows negligible benefit:
+
+$$
+P(\beta_{\text{TMT},2} < 0 \,|\, \text{data}) < 0.10 \quad \text{OR} \quad P(\beta_{\text{MFIS},2} < 0 \,|\, \text{data}) < 0.10
+$$
+
+**Rationale**: If either endpoint is unlikely to show benefit, the trial cannot succeed.
+
+### Decision Thresholds
+
+```{r}
+#| label: thresholds
+cat("Stopping Rule Thresholds:\n")
+cat(sprintf("  Efficacy threshold: %.2f\n", sim_params$efficacy_threshold))
+cat(sprintf("  Futility threshold: %.2f\n", sim_params$futility_threshold))
+```
+
+## Simulation Results
+
+::: {.callout-warning}
+## Computational Note
+Running the full interim analysis simulation is computationally intensive. Results shown are from cached simulations when available.
+:::
+
+```{r}
+#| label: run-interim-simulation
+#| eval: false
+
+# Compile model
+model <- compile_model()
+
+# Run interim analysis simulations (cached)
+interim_results <- compute_with_cache(
+  "interim_analysis_main.rds",
+  function() {
+    simulate_interim_trials(
+      model = model,
+      n_reps = sim_params$n_reps,
+      initial_n = sim_params$initial_n,
+      increment = sim_params$interim_increment,
+      max_n = sim_params$max_n,
+      parallel = TRUE
+    )
+  }
+)
+
+# Summarize results
+interim_summary <- summarize_interim_results(interim_results)
+saveRDS(interim_summary, "../data/cached_results/interim_summary.rds")
+```
+
+### Summary Statistics
+
+```{r}
+#| label: interim-summary
+#| eval: false
+print_interim_summary(interim_summary)
+```
+
+### Stopping Probabilities by Stage
+
+```{r}
+#| label: stopping-plot
+#| eval: false
+plot_interim_stopping(interim_summary)
+```
+
+### Expected Sample Size Distribution
+
+```{r}
+#| label: ess-plot
+#| eval: false
+plot_sample_size_distribution(interim_summary)
+```
+
+## Operating Characteristics
+
+### Type I Error Control
+
+Under the null hypothesis (no treatment effect):
+
+- The probability of stopping for efficacy should be controlled at the desired level
+- The futility stopping rule provides additional protection
+
+### Power Considerations
+
+Under the alternative hypothesis:
+
+- Power is the probability of correctly concluding efficacy
+- Expected sample size is reduced by early stopping
+
+### Expected Sample Size
+
+The expected sample size (ESS) is calculated as:
+
+$$
+\text{ESS} = \sum_{k=1}^{K} n_k \cdot P(\text{stop at } n_k)
+$$
+
+Where $K$ is the total number of interim analyses and $n_k$ is the sample size at interim $k$.
+
+## Comparison: Fixed vs. Adaptive Design
+
+| Metric | Fixed Design | Adaptive Design |
+|--------|-------------|-----------------|
+| Maximum N | Fixed | Same maximum |
+| Expected N | Fixed | Often lower |
+| Early efficacy | No | Yes |
+| Futility stopping | No | Yes |
+| Type I error | Controlled | Controlled |
+| Power | Target | ~Same or higher |
+
+## Implementation Considerations
+
+### Practical Aspects
+
+1. **Data monitoring committee**: Required for interim decisions
+2. **Blinding**: Must maintain until stopping boundary crossed
+3. **Timing**: Interims triggered by enrollment milestones
+4. **Logistics**: Ensure timely outcome assessment
+
+### Statistical Considerations
+
+1. **Alpha spending**: Controlled by the Bayesian framework
+2. **Sample size re-estimation**: Not included in current design
+3. **Effect size updating**: Priors are fixed, not adaptive
