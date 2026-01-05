@@ -248,17 +248,17 @@ sudo apt-get install -y \
 
 ```bash
 cd /shared
-wget https://github.com/stan-dev/cmdstan/releases/download/v2.34.1/cmdstan-2.34.1.tar.gz
-tar -xzf cmdstan-2.34.1.tar.gz
-cd cmdstan-2.34.1
+wget https://github.com/stan-dev/cmdstan/releases/download/v2.34.1/cmdstan-2.37.0.tar.gz
+tar -xzf cmdstan-2.37.0.tar.gz
+cd cmdstan-2.37.0
 make build -j2
 
 # Clean up
 cd /shared
-rm cmdstan-2.34.1.tar.gz
+rm cmdstan-2.37.0.tar.gz
 
 # Set path
-echo 'export CMDSTAN=/shared/cmdstan-2.34.1' >> ~/.bashrc
+echo 'export CMDSTAN=/shared/cmdstan-2.37.0' >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -336,7 +336,7 @@ Rscript -e "install.packages(c(
 ), lib = '/shared/R-libs', repos = 'https://cloud.r-project.org/', dependencies = TRUE)"
 
 # Set cmdstan path for R
-Rscript -e "cmdstanr::set_cmdstan_path('/shared/cmdstan-2.34.1')"
+Rscript -e "cmdstanr::set_cmdstan_path('/shared/cmdstan-2.37.0')"
 ```
 
 **Note:** R packages compile from source on Linux. This takes 30-45 minutes for all 135 packages.
@@ -400,29 +400,66 @@ bash /shared/taurinelc/cluster/check_progress.sh
 Example output:
 ```
 === Power Analysis Job Array Progress ===
+2026-01-04 04:30:00
 
 Queue Status:
 JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
-47_1   compute power_ar   ubuntu  R       5:00      1 compute-dy-c5xlarge-1
-47_2   compute power_ar   ubuntu  R       5:00      1 compute-dy-c5xlarge-2
-...
+64_5   compute power_ar   ubuntu  R      45:00      1 compute-dy-c5xlarge-5
+64_6   compute power_ar   ubuntu  R      45:00      1 compute-dy-c5xlarge-6
+64_7   compute power_ar   ubuntu  R      45:00      1 compute-dy-c5xlarge-7
 
 Completed Simulations per Node:
-  Node 1 (N=120): 26/100
-  Node 2 (N=180): 18/100
-  Node 3 (N=240): 13/100
-  Node 4 (N=300): 11/100
-  Node 5 (N=360): 9/100
-  Node 6 (N=420): 8/100
-  Node 7 (N=480): 7/100
+  Node 1 (N=120): 100/100 [##########] 100%
+  Node 2 (N=180): 100/100 [##########] 100%
+  Node 3 (N=240): 100/100 [##########] 100%
+  Node 4 (N=300): 100/100 [##########] 100%
+  Node 5 (N=360): 80/100 [########--] 80%
+  Node 6 (N=420): 37/100 [###-------] 37% ⚠️  STUCK (180s)
+  Node 7 (N=480): 65/100 [######----] 65%
 
-Saved Results:
-  N=120: pending
-  N=180: pending
-  ...
+Overall Progress: 582/700 (83%)
+
+=== Time Estimates ===
+Elapsed time: 45m 0s
+Avg rate: 0.22 sims/sec (all nodes)
+Estimated time remaining: 15m 30s
+
+=== Saved Results ===
+  N=120: COMPLETE
+  N=180: COMPLETE
+  N=240: COMPLETE
+  N=300: COMPLETE
+  N=360: pending
+  N=420: pending
+  N=480: pending
+
+4/7 result files saved. Waiting for remaining jobs...
+
+=== ⚠️  STUCK NODES DETECTED ===
+The following nodes have not made progress in over 120 seconds:
+
+  Node 6 (N=420) - Job ID: 64_6
+
+To restart stuck nodes, run:
+
+  # Restart Node 6 (N=420):
+  scancel 64_6
+  sbatch --array=6 cluster/slurm_power_array.sh
+
+Then verify with: squeue
+
+Alternative: Run manually on head node:
+  Rscript run_single_n.R --n=420 --reps=100
 ```
 
-**How it works:** The script counts occurrences of "All 4 chains finished" in each log file, which is printed by cmdstanr after every successful model fit.
+**Features:**
+- **Progress tracking**: Counts "All 4 chains finished" messages in log files
+- **Stuck node detection**: Flags nodes with no progress for >120 seconds
+- **Automatic remediation**: Provides copy-paste commands to restart stuck jobs
+- **Time estimates**: Calculates estimated completion based on current rate
+- **Cost estimates**: Shows current and projected AWS costs
+
+**How it works:** The script maintains a progress history file (`.progress_history`) to track simulation counts over time. If a node's count hasn't changed between checks for more than the threshold (default 120s), it's flagged as stuck.
 
 ### Combining Results
 
@@ -460,6 +497,22 @@ Monitor deletion:
 pcluster describe-cluster --cluster-name taurine-cluster --region ca-central-1
 ```
 
+### What Gets Deleted vs Retained
+
+| Resource | On Cluster Deletion |
+|----------|---------------------|
+| Head node (EC2) | **Deleted** - stops incurring charges |
+| Compute nodes (EC2) | **Deleted** - auto-scaled, no charge when idle anyway |
+| EBS Volume (`/shared`) | **Retained** - persists with all data, R packages, CmdStan |
+| CloudFormation stack | **Deleted** |
+
+**The EBS volume is configured with `DeletionPolicy: Retain`** in `cluster-config.yaml`. This means:
+- Your `/shared` directory (R packages, CmdStan, project files, results) survives cluster deletion
+- You pay ~$4/month for 50GB storage while the cluster is deleted
+- When you create a new cluster with the same `VolumeId`, everything is ready to use immediately
+
+Current retained volume: `vol-0beea6f8358fdf46c` (see `cluster-config.yaml`)
+
 ## Troubleshooting
 
 ### Cluster Creation Fails
@@ -478,7 +531,7 @@ Common issues:
 
 Clean and retry:
 ```bash
-cd /shared/cmdstan-2.34.1
+cd /shared/cmdstan-2.37.0
 make clean
 make build -j2
 ```

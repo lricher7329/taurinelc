@@ -18,7 +18,7 @@ echo "Start time: $(date)"
 echo ""
 
 # Set up environment
-export CMDSTAN=/shared/cmdstan-2.34.1
+export CMDSTAN=/shared/cmdstan-2.37.0
 export R_LIBS_USER=/shared/R-libs
 
 # Create logs directory if it doesn't exist

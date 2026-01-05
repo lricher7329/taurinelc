@@ -35,9 +35,9 @@ if (Sys.getenv("CMDSTAN") != "") {
 } else if (dir.exists("/shared/cmdstan-2.34.1")) {
   # AWS ParallelCluster location
   cmdstanr::set_cmdstan_path("/shared/cmdstan-2.34.1")
-} else if (dir.exists(file.path(Sys.getenv("HOME"), ".cmdstan/cmdstan-2.34.1"))) {
+} else if (dir.exists(file.path(Sys.getenv("HOME"), ".cmdstan/cmdstan-2.35.0"))) {
   # Default local installation
-  cmdstanr::set_cmdstan_path(file.path(Sys.getenv("HOME"), ".cmdstan/cmdstan-2.34.1"))
+  cmdstanr::set_cmdstan_path(file.path(Sys.getenv("HOME"), ".cmdstan/cmdstan-2.35.0"))
 }
 
 # Configure parallel processing
@@ -86,4 +86,12 @@ if (Sys.getenv("QUARTO_RENDER") == "TRUE") {
 options(cmdstanr_verbose = FALSE)
 }
 
-message("Setup complete. Use source('R/parameters.R') to load trial parameters.")
+message("Setup complete. Source files in order:")
+message("  source('R/parameters.R')      # Trial parameters")
+message("  source('R/priors.R')          # Two-prior framework (design vs analysis)")
+message("  source('R/simulate_data.R')   # Data simulation")
+message("  source('R/fit_model.R')       # Stan model fitting")
+message("  source('R/power_analysis.R')  # Power and assurance calculation")
+message("  source('R/type1_error.R')     # Type I error estimation")
+message("  source('R/sensitivity.R')     # Prior sensitivity analysis")
+message("  source('R/interim_analysis.R') # Interim stopping rules")

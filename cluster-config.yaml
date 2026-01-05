@@ -30,3 +30,4 @@ SharedStorage:
       Size: 50
       VolumeType: gp3
       DeletionPolicy: Retain  # Keep EBS volume when cluster is deleted
+      VolumeId: vol-0beea6f8358fdf46c  # Persisted volume - DO NOT DELETE

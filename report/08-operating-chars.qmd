@@ -1,0 +1,280 @@
+---
+title: "Operating Characteristics"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/priors.R")
+source("../R/simulate_data.R")
+source("../R/fit_model.R")
+source("../R/power_analysis.R")
+source("../R/type1_error.R")
+```
+
+## Overview
+
+This chapter presents the complete operating characteristics of the Bayesian design for the taurine supplementation trial:
+
+1. **Conditional Power**: Probability of success at fixed (design) effect sizes
+2. **Assurance**: Expected probability of success averaging over design prior
+3. **Type I Error**: False positive rate under null hypothesis
+4. **Required Sample Size**: N needed to achieve target metrics
+
+These metrics provide a comprehensive picture of the design's performance for regulatory review.
+
+## Conditional Power Analysis
+
+### Power at Design Effect Size
+
+Conditional power is calculated at the design effect sizes specified in `parameters.R`:
+
+```{r}
+#| label: design-effects
+#| echo: false
+cat("Design Effect Sizes (gamma_treat):\n")
+cat(sprintf("  TMT: %.3f (standardized)\n", true_effects$tmt$gamma_treat))
+cat(sprintf("  MFIS: %.3f (standardized)\n", true_effects$mfis$gamma_treat))
+```
+
+### Power Curve Computation
+
+```{r}
+#| label: power-curve
+#| eval: false
+#| echo: true
+
+# Compile Stan model
+model <- compile_model()
+
+# Estimate power curve across sample sizes
+power_results <- estimate_power_curve(
+  sample_sizes = sim_params$sample_sizes,
+  model = model,
+  n_reps = sim_params$n_reps,
+  parallel = FALSE
+)
+
+# Save results
+saveRDS(power_results, "data/cached_results/power_results.rds")
+```
+
+```{r}
+#| label: power-display
+#| eval: false
+
+# Load cached results
+power_results <- readRDS("data/cached_results/power_results.rds")
+
+# Display power summary
+print_power_summary(power_results)
+```
+
+### Power Curve Visualization
+
+```{r}
+#| label: power-plot
+#| eval: false
+#| fig.cap: "Conditional power curve with 95% confidence intervals"
+
+ggplot(power_results, aes(x = n, y = power)) +
+  geom_line(linewidth = 1, color = "#0072B2") +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci),
+              alpha = 0.2, fill = "#0072B2") +
+  geom_point(size = 2, color = "#0072B2") +
+  geom_hline(yintercept = 0.8, linetype = "dashed", alpha = 0.5) +
+  geom_hline(yintercept = 0.9, linetype = "dashed", alpha = 0.5) +
+  annotate("text", x = max(sim_params$sample_sizes), y = 0.82,
+           label = "80% power", hjust = 1, size = 3) +
+  annotate("text", x = max(sim_params$sample_sizes), y = 0.92,
+           label = "90% power", hjust = 1, size = 3) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(
+    x = "Total Sample Size (N)",
+    y = "Power",
+    title = "Conditional Power at Design Effect Size",
+    subtitle = sprintf("TMT effect = %.2f, MFIS effect = %.2f (standardized)",
+                      true_effects$tmt$gamma_treat, true_effects$mfis$gamma_treat)
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+::: {.callout-note}
+## Placeholder
+Run the power analysis code to generate results. Results are cached in `data/cached_results/` for subsequent renders.
+:::
+
+## Assurance Analysis
+
+Assurance accounts for uncertainty in the true treatment effect by averaging power over the design prior. This provides a more honest assessment of trial success probability.
+
+### Assurance Computation
+
+```{r}
+#| label: assurance
+#| eval: false
+#| echo: true
+
+# Create design prior
+design_prior <- create_combined_design_prior(
+  tmt_effect = -0.10,
+  tmt_sd = 0.05,
+  mfis_effect = -0.20,
+  mfis_sd = 0.10
+)
+
+# Estimate assurance curve
+assurance_results <- estimate_assurance_curve(
+  sample_sizes = sim_params$sample_sizes,
+  model = model,
+  design_prior = design_prior,
+  n_reps = sim_params$n_reps
+)
+
+# Save results
+saveRDS(assurance_results, "data/cached_results/assurance_results.rds")
+```
+
+```{r}
+#| label: assurance-display
+#| eval: false
+
+# Load cached results
+assurance_results <- readRDS("data/cached_results/assurance_results.rds")
+
+# Display assurance summary
+print_assurance_summary(assurance_results)
+```
+
+::: {.callout-important}
+## Power vs. Assurance
+Assurance is typically lower than conditional power because it accounts for the possibility that the true effect may be smaller than the design assumption. This makes assurance a more conservative and honest metric for planning.
+:::
+
+## Type I Error
+
+Type I error (false positive rate) is estimated by simulating trials under the null hypothesis (no treatment effect).
+
+### Type I Error Estimation
+
+```{r}
+#| label: type1-error
+#| eval: false
+#| echo: true
+
+# Estimate Type I error at key sample sizes
+type1_results <- estimate_type1_curve(
+  sample_sizes = sim_params$sample_sizes,
+  model = model,
+  n_reps = 500,  # More replications for stable estimate
+  decision_threshold = sim_params$efficacy_threshold
+)
+
+# Save results
+saveRDS(type1_results, "data/cached_results/type1_results.rds")
+```
+
+### Type I Error Summary
+
+```{r}
+#| label: type1-display
+#| eval: false
+
+type1_results <- readRDS("data/cached_results/type1_results.rds")
+
+cat("Type I Error by Sample Size:\n")
+cat(sprintf("Decision threshold: %.2f\n\n", sim_params$efficacy_threshold))
+for (i in seq_len(nrow(type1_results))) {
+  cat(sprintf("  N = %3d: Type I Error = %.4f [%.4f, %.4f]\n",
+              type1_results$n[i],
+              type1_results$type1_error[i],
+              type1_results$lower_ci[i],
+              type1_results$upper_ci[i]))
+}
+```
+
+::: {.callout-tip}
+## Regulatory Context
+For a 0.95 posterior probability threshold with weakly informative priors, the Type I error is typically well below 0.05, providing strong error control.
+:::
+
+## Required Sample Size
+
+### For Target Power
+
+```{r}
+#| label: required-n-power
+#| eval: false
+#| echo: true
+
+# Estimate required N for 90% power
+required_n_power <- estimate_required_n(power_results, target_power = 0.90)
+
+cat("Required Sample Size for 90% Power:\n")
+cat(sprintf("  Point estimate: %.0f\n", required_n_power$required_n))
+cat(sprintf("  95%% CI: [%.0f, %.0f]\n",
+            required_n_power$lower_ci, required_n_power$upper_ci))
+```
+
+### For Target Assurance
+
+```{r}
+#| label: required-n-assurance
+#| eval: false
+#| echo: true
+
+# Estimate required N for 80% assurance
+required_n_assurance <- estimate_required_n_assurance(assurance_results, target_assurance = 0.80)
+
+cat("Required Sample Size for 80% Assurance:\n")
+cat(sprintf("  Point estimate: %.0f\n", required_n_assurance$required_n))
+cat(sprintf("  95%% CI: [%.0f, %.0f]\n",
+            required_n_assurance$lower_ci, required_n_assurance$upper_ci))
+```
+
+## Operating Characteristics Table
+
+```{r}
+#| label: oc-table
+#| eval: false
+#| tbl-cap: "Operating Characteristics by Sample Size"
+
+# Create combined OC table
+oc_table <- create_oc_table(power_results, assurance_results, type1_results)
+
+knitr::kable(
+  oc_table,
+  digits = 3,
+  col.names = c("N", "Power", "Lower", "Upper",
+                "Assurance", "Lower", "Upper",
+                "Type I Error", "Lower", "Upper"),
+  align = "rrrrrrrrrr"
+)
+```
+
+## Summary
+
+| Metric | Target | Achieved | Sample Size |
+|--------|--------|----------|-------------|
+| Power | 90% | [Run analysis] | [Run analysis] |
+| Assurance | 80% | [Run analysis] | [Run analysis] |
+| Type I Error | ≤5% | [Run analysis] | N/A |
+
+::: {.callout-note}
+## Running the Analysis
+To generate these results, run the power analysis scripts:
+```r
+source("R/_setup.R")
+source("R/parameters.R")
+source("R/priors.R")
+source("R/simulate_data.R")
+source("R/fit_model.R")
+source("R/power_analysis.R")
+source("R/type1_error.R")
+
+model <- compile_model()
+# Then run the computation blocks above
+```
+:::

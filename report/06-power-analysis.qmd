@@ -1,0 +1,301 @@
+---
+title: "Power Analysis"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/simulate_data.R")
+source("../R/fit_model.R")
+source("../R/power_analysis.R")
+source("../R/visualization.R")
+```
+
+## Objective
+
+Determine the sample size required to achieve **90% power** to detect clinically meaningful treatment effects on both co-primary outcomes using Bayesian decision criteria.
+
+## Methodology
+
+### Simulation-Based Power Estimation
+
+Power is estimated through Monte Carlo simulation:
+
+1. For each candidate sample size $n$:
+   a. Simulate $R$ trial datasets under the alternative hypothesis
+   b. Fit the Bayesian model to each dataset
+   c. Evaluate the decision criterion
+   d. Calculate power as proportion of "successful" trials
+
+2. Fit a logistic regression to the power curve
+3. Solve for the sample size achieving 90% power
+4. Calculate confidence interval using the delta method
+
+### Power Calculation
+
+For sample size $n$:
+
+$$
+\text{Power}(n) = \frac{1}{R} \sum_{r=1}^{R} I\left(\frac{P_{\text{TMT}}^{(r)} + P_{\text{MFIS}}^{(r)}}{2} \geq 0.95\right)
+$$
+
+Where:
+- $P_{\text{TMT}}^{(r)} = P(\beta_{\text{TMT},2} < 0 \,|\, \text{data}^{(r)})$
+- $P_{\text{MFIS}}^{(r)} = P(\beta_{\text{MFIS},2} < 0 \,|\, \text{data}^{(r)})$
+
+## Sample Size Grid
+
+```{r}
+#| label: sample-sizes
+cat("Sample sizes to evaluate:\n")
+cat(sprintf("  %s\n", paste(sim_params$sample_sizes, collapse = ", ")))
+cat(sprintf("\nReplications per sample size: %d\n", sim_params$n_reps))
+```
+
+## Power Analysis Results
+
+```{r}
+#| label: load-power-results
+#| message: false
+
+# Load cached power results from cluster run
+power_results_file <- "../data/cached_results/power_results.rds"
+
+if (file.exists(power_results_file)) {
+  power_results <- readRDS(power_results_file)
+  cat(sprintf("Loaded power results for %d sample sizes\n", nrow(power_results)))
+  cat(sprintf("Sample sizes: %s\n", paste(power_results$n, collapse = ", ")))
+} else {
+  power_results <- NULL
+  cat("No cached power results found. Run cluster/slurm_power_array.sh to generate.\n")
+}
+```
+
+### Power by Sample Size
+
+```{r}
+#| label: power-table
+#| tbl-cap: "Power estimates by sample size (100 replications per sample size)"
+
+if (!is.null(power_results)) {
+  # Create formatted table
+  power_table <- power_results |>
+    mutate(
+      `Sample Size (N)` = n,
+      `Power (%)` = sprintf("%.1f", power * 100),
+      `95% CI` = sprintf("[%.1f%%, %.1f%%]", lower_ci * 100, upper_ci * 100),
+      `Successes` = sprintf("%d / %d", successes, n_valid)
+    ) |>
+    select(`Sample Size (N)`, `Power (%)`, `95% CI`, `Successes`)
+
+  knitr::kable(power_table, align = c("r", "r", "c", "c"))
+}
+```
+
+### Power Curve
+
+```{r}
+#| label: power-curve-plot
+#| fig-cap: "Power curve for detecting treatment effects on both co-primary outcomes"
+#| fig-width: 8
+#| fig-height: 5
+
+if (!is.null(power_results)) {
+  target_power <- 0.90
+
+  p <- ggplot(power_results, aes(x = n, y = power)) +
+    geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci),
+                fill = "steelblue", alpha = 0.2) +
+    geom_line(color = "steelblue", linewidth = 1) +
+    geom_point(color = "steelblue", size = 3) +
+    geom_hline(yintercept = target_power, linetype = "dashed", color = "red", linewidth = 0.8) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "orange", linewidth = 0.8) +
+    scale_y_continuous(
+      limits = c(0, 1),
+      labels = scales::percent,
+      breaks = seq(0, 1, 0.1)
+    ) +
+    scale_x_continuous(breaks = power_results$n) +
+    annotate("text", x = max(power_results$n), y = 0.92,
+             label = "90% power", hjust = 1, color = "red", size = 3.5) +
+    annotate("text", x = max(power_results$n), y = 0.82,
+             label = "80% power", hjust = 1, color = "orange", size = 3.5) +
+    labs(
+      title = "Power Curve: Bayesian Co-Primary Outcome Trial",
+      subtitle = sprintf("Decision rule: P(benefit|data) ≥ %.0f%% for both TMT and MFIS",
+                         sim_params$efficacy_threshold * 100),
+      x = "Sample Size (N)",
+      y = "Power"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      panel.grid.minor = element_blank(),
+      plot.title = element_text(face = "bold")
+    )
+
+  print(p)
+}
+```
+
+### Key Observations
+
+```{r}
+#| label: power-observations
+#| results: asis
+
+if (!is.null(power_results)) {
+  # Find power at key sample sizes
+  max_power <- power_results |> filter(power == max(power))
+  power_80 <- power_results |> filter(power >= 0.80) |> slice_min(n)
+
+  cat("Based on the simulation results:\n\n")
+  cat(sprintf("- **Maximum observed power**: %.1f%% at N = %d\n",
+              max_power$power[1] * 100, max_power$n[1]))
+
+  if (nrow(power_80) > 0) {
+    cat(sprintf("- **80%% power achieved at**: N = %d (observed: %.1f%%)\n",
+                power_80$n[1], power_80$power[1] * 100))
+  }
+
+  # Check if 90% power is achieved
+  power_90 <- power_results |> filter(power >= 0.90)
+  if (nrow(power_90) > 0) {
+    cat(sprintf("- **90%% power achieved at**: N = %d\n", min(power_90$n)))
+  } else {
+    cat("- **90%% power**: Not yet achieved in tested sample sizes\n")
+    cat(sprintf("  - Largest tested N = %d achieved %.1f%% power\n",
+                max(power_results$n), max(power_results$power) * 100))
+  }
+
+  # Note about remaining sample sizes
+  tested_n <- power_results$n
+  all_n <- sim_params$sample_sizes
+  remaining_n <- setdiff(all_n, tested_n)
+
+  if (length(remaining_n) > 0) {
+    cat(sprintf("\n::: {.callout-note}\n"))
+    cat(sprintf("Results for N = %s are pending from cluster computation.\n",
+                paste(remaining_n, collapse = ", ")))
+    cat(":::\n")
+  }
+}
+```
+
+## Sample Size Determination
+
+### Logistic Regression Model
+
+The relationship between sample size and power is modeled as:
+
+$$
+\text{logit}(\text{Power}) = \beta_0 + \beta_1 \cdot n
+$$
+
+The required sample size for target power $\pi$ is:
+
+$$
+n^* = \frac{\text{logit}(\pi) - \beta_0}{\beta_1}
+$$
+
+```{r}
+#| label: required-n-estimate
+#| results: asis
+
+if (!is.null(power_results) && nrow(power_results) >= 3) {
+  # Fit logistic model to estimate required N
+  tryCatch({
+    # Use weighted binomial regression
+    fit <- glm(
+      cbind(successes, n_valid - successes) ~ n,
+      data = power_results,
+      family = binomial(link = "logit")
+    )
+
+    beta0 <- coef(fit)[1]
+    beta1 <- coef(fit)[2]
+
+    # Solve for 90% power
+    target <- 0.90
+    logit_target <- log(target / (1 - target))
+    required_n_90 <- (logit_target - beta0) / beta1
+
+    # Solve for 80% power
+    target_80 <- 0.80
+    logit_target_80 <- log(target_80 / (1 - target_80))
+    required_n_80 <- (logit_target_80 - beta0) / beta1
+
+    cat("### Estimated Required Sample Sizes\n\n")
+    cat(sprintf("Based on logistic regression fit to observed power curve:\n\n"))
+    cat(sprintf("- **80%% power**: N ≈ %.0f\n", required_n_80))
+    cat(sprintf("- **90%% power**: N ≈ %.0f\n", required_n_90))
+
+    if (required_n_90 > max(power_results$n)) {
+      cat(sprintf("\n::: {.callout-warning}\n"))
+      cat("The estimated N for 90%% power (%.0f) exceeds the largest tested sample size (%.0f).\n",
+          required_n_90, max(power_results$n))
+      cat("This extrapolation should be verified with additional simulations.\n")
+      cat(":::\n")
+    }
+
+  }, error = function(e) {
+    cat("Unable to fit logistic model to current data.\n")
+  })
+}
+```
+
+### Confidence Interval (Delta Method)
+
+The variance of $n^*$ is estimated using the delta method:
+
+$$
+\text{Var}(n^*) = \left(\frac{\partial n^*}{\partial \beta_0}\right)^2 \text{Var}(\beta_0) + \left(\frac{\partial n^*}{\partial \beta_1}\right)^2 \text{Var}(\beta_1) + 2 \frac{\partial n^*}{\partial \beta_0} \frac{\partial n^*}{\partial \beta_1} \text{Cov}(\beta_0, \beta_1)
+$$
+
+Where:
+- $\frac{\partial n^*}{\partial \beta_0} = -\frac{1}{\beta_1}$
+- $\frac{\partial n^*}{\partial \beta_1} = -\frac{\text{logit}(\pi) - \beta_0}{\beta_1^2}$
+
+## Wilson Score Confidence Intervals
+
+For each sample size, the power estimate has a 95% Wilson score confidence interval:
+
+$$
+\frac{\hat{p} + \frac{z^2}{2n} \pm z\sqrt{\frac{\hat{p}(1-\hat{p})}{n} + \frac{z^2}{4n^2}}}{1 + \frac{z^2}{n}}
+$$
+
+This interval provides better coverage than the normal approximation, especially for proportions near 0 or 1.
+
+## Recommendations
+
+```{r}
+#| label: recommendations
+#| results: asis
+
+if (!is.null(power_results)) {
+  max_n <- max(power_results$n)
+  max_power_val <- power_results$power[power_results$n == max_n]
+
+  cat("Based on the power analysis:\n\n")
+
+  if (max_power_val >= 0.90) {
+    power_90 <- power_results |> filter(power >= 0.90) |> slice_min(n)
+    cat(sprintf("1. **Primary recommendation**: Sample size of N = %d provides ≥90%% power\n",
+                power_90$n[1]))
+  } else if (max_power_val >= 0.80) {
+    power_80 <- power_results |> filter(power >= 0.80) |> slice_min(n)
+    cat(sprintf("1. **Primary recommendation**: Sample size of N = %d provides ≥80%% power\n",
+                power_80$n[1]))
+    cat("   - 90%% power may require larger sample sizes than currently tested\n")
+  } else {
+    cat("1. **Preliminary finding**: Current effect size assumptions may require larger samples\n")
+    cat(sprintf("   - Maximum observed power: %.1f%% at N = %d\n", max_power_val * 100, max_n))
+  }
+
+  cat("2. **Consider attrition**: Add 10-15% for expected dropout\n")
+  cat("3. **Consider assurance**: See Chapter 8 for Bayesian assurance (accounts for parameter uncertainty)\n")
+} else {
+  cat("Recommendations pending completion of power analysis simulations.\n")
+}
+```

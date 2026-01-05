@@ -1,0 +1,132 @@
+---
+title: "Estimand Definition"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+```
+
+## ICH E9(R1) Framework
+
+Per the [ICH E9(R1) addendum](https://database.ich.org/sites/default/files/E9-R1_Step4_Guideline_2019_1203.pdf), the estimand framework clarifies what the trial aims to estimate. This section documents the primary estimands for the taurine supplementation trial in Long COVID patients.
+
+::: {.callout-important}
+## Regulatory Requirement
+The estimand must be specified before sample size calculation, as it determines the statistical model and analysis approach.
+:::
+
+## Co-Primary Estimands
+
+This trial has two co-primary estimands corresponding to the two co-primary outcomes.
+
+### 1. Population
+
+**Target Population:** Adult patients (≥18 years) with clinically confirmed Long COVID meeting the following criteria:
+
+- Documented COVID-19 infection at least 12 weeks prior
+- Persistent symptoms of fatigue and/or cognitive dysfunction
+- No contraindications to taurine supplementation
+- Able to complete cognitive testing and questionnaires
+
+Key exclusion criteria:
+- Pre-existing neurodegenerative conditions
+- Active psychiatric disorders affecting cognitive assessment
+- Use of other investigational agents for Long COVID
+
+### 2. Variables (Endpoints)
+
+**Co-Primary Endpoint 1: TMT B/A Ratio**
+
+```{r}
+#| label: tmt-endpoint
+#| echo: false
+cat("Trail Making Test B/A Ratio:\n")
+cat(sprintf("  - Type: Continuous (ratio scale)\n"))
+cat(sprintf("  - Direction: Lower is better\n"))
+cat(sprintf("  - Baseline mean: %.2f\n", outcomes$tmt$mean))
+cat(sprintf("  - MCID: %.1f units\n", outcomes$tmt$mcid))
+cat(sprintf("  - Clinical range: [%.1f, %.1f]\n", outcomes$tmt$range[1], outcomes$tmt$range[2]))
+```
+
+**Co-Primary Endpoint 2: MFIS Total Score**
+
+```{r}
+#| label: mfis-endpoint
+#| echo: false
+cat("Modified Fatigue Impact Scale:\n")
+cat(sprintf("  - Type: Continuous (sum score)\n"))
+cat(sprintf("  - Direction: Lower is better\n"))
+cat(sprintf("  - Baseline mean: %.1f\n", outcomes$mfis$mean))
+cat(sprintf("  - MCID: %.0f points\n", outcomes$mfis$mcid))
+cat(sprintf("  - Clinical range: [%.0f, %.0f]\n", outcomes$mfis$range[1], outcomes$mfis$range[2]))
+```
+
+### 3. Intercurrent Events
+
+Intercurrent events are events that occur after randomization and affect interpretation of the treatment effect:
+
+| Event | Strategy | Rationale |
+|-------|----------|-----------|
+| Treatment discontinuation | Treatment policy | Primary analysis includes all randomized participants regardless of adherence |
+| Rescue medication for symptoms | Treatment policy | Common in Long COVID; excluding would bias results |
+| Death | Composite | Rare in this population; if occurs, endpoint is worst observed value |
+| COVID-19 reinfection | Treatment policy | Pragmatic approach reflects real-world use |
+
+**Strategy definitions:**
+
+- **Treatment policy**: Include all data regardless of adherence, providing a pragmatic estimate of treatment effect
+- **Hypothetical**: What would have happened if no intercurrent event occurred
+- **Composite**: Include the event as part of the outcome definition
+
+### 4. Population-Level Summary
+
+**TMT B/A Ratio Estimand:**
+$$
+E[Y_{TMT,3m} - Y_{TMT,baseline} \,|\, \text{Taurine}] - E[Y_{TMT,3m} - Y_{TMT,baseline} \,|\, \text{Placebo}]
+$$
+
+**MFIS Estimand:**
+$$
+E[Y_{MFIS,3m} - Y_{MFIS,baseline} \,|\, \text{Taurine}] - E[Y_{MFIS,3m} - Y_{MFIS,baseline} \,|\, \text{Placebo}]
+$$
+
+These correspond to the treatment effect parameters $\beta_{treat,TMT}$ and $\beta_{treat,MFIS}$ in our Bayesian model.
+
+## Decision Rule
+
+The primary decision is based on the joint posterior probability of treatment benefit:
+
+$$
+P(\beta_{treat,TMT} < 0 \,|\, \text{data}) \geq `r sim_params$efficacy_threshold` \quad \text{AND} \quad P(\beta_{treat,MFIS} < 0 \,|\, \text{data}) \geq `r sim_params$efficacy_threshold`
+$$
+
+```{r}
+#| label: decision-rules
+#| echo: false
+cat("Decision Rules for Co-Primary Outcomes:\n\n")
+cat(sprintf("- **Efficacy**: BOTH TMT and MFIS must show P(benefit) ≥ %.2f\n",
+            sim_params$efficacy_threshold))
+cat(sprintf("- **Futility**: EITHER outcome showing P(benefit) < %.2f\n",
+            sim_params$futility_threshold))
+cat("\nNote: Lower values indicate benefit for both outcomes.\n")
+```
+
+## Implications for Sample Size
+
+The estimand definitions impact sample size through:
+
+1. **Co-primary structure**: Requiring success on both endpoints is more stringent than either alone, reducing power and requiring larger samples
+
+2. **Treatment policy estimand**: May dilute treatment effect if adherence is imperfect, requiring larger samples to detect effect
+
+3. **ANCOVA adjustment**: Adjusting for baseline values increases precision, somewhat offsetting the above
+
+4. **Correlation between outcomes**: Moderate positive correlation between TMT and MFIS improves joint power
+
+::: {.callout-note}
+## ICH E9(R1) Reference
+Section 3 of the addendum recommends that "the primary estimand should reflect the primary trial objective and should guide the choice of primary endpoint, the main analytical approach, and the primary presentation of results."
+:::

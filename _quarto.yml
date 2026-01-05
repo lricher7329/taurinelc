@@ -10,12 +10,15 @@ book:
   chapters:
     - index.qmd
     - report/01-introduction.qmd
-    - report/02-methods.qmd
-    - report/03-simulation.qmd
-    - report/04-power-analysis.qmd
-    - report/05-interim-analysis.qmd
-    - report/06-results.qmd
-    - report/07-sensitivity.qmd
+    - report/02-estimand.qmd
+    - report/03-priors.qmd
+    - report/04-methods.qmd
+    - report/05-simulation.qmd
+    - report/06-power-analysis.qmd
+    - report/07-interim-analysis.qmd
+    - report/08-operating-chars.qmd
+    - report/09-results.qmd
+    - report/10-sensitivity.qmd
 
 format:
   html:

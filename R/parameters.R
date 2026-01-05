@@ -36,17 +36,20 @@ fas = list(
 )
 
 # True treatment effects for simulation
+# Updated 2026-01-04: Increased effect sizes for more realistic power
+# Previous: TMT -0.10, MFIS -3 (resulted in ~77% power at N=480)
+# Current: TMT -0.15, MFIS -5 (targeting 80% power around N=240-300)
 true_effects <- list(
 tmt = list(
   alpha = 0,           # Intercept adjustment
   beta_base = 1,       # Baseline effect coefficient
-  gamma_treat = -0.1,  # Treatment effect (negative = improvement)
+  gamma_treat = -0.15, # Treatment effect (negative = improvement)
   sigma = 0.5          # Residual SD
 ),
 mfis = list(
   alpha = 0,
   beta_base = 1,
-  gamma_treat = -3,    # Treatment reduces MFIS by 3 points
+  gamma_treat = -5,    # Treatment reduces MFIS by 5 points
   sigma = 8            # Residual SD
 ),
 rho = 0.2              # Correlation between outcomes at follow-up

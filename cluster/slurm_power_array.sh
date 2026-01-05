@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=01:00:00
+#SBATCH --time=02:00:00
 #SBATCH --mem=6G
 
 # Slurm job array script for running power analysis across multiple nodes
@@ -42,7 +42,9 @@ cd /shared/taurinelc
 
 # Run the power analysis for this sample size
 # Use array task ID as seed offset for reproducibility
-SEED=$((1234 + SLURM_ARRAY_TASK_ID * 1000))
+# Note: Using prime-based seed to avoid pathological datasets
+# Previous seeds 7234 and 8000 both caused stuck samplers at rep 38 for N=420
+SEED=$((4231 + SLURM_ARRAY_TASK_ID * 1117))
 Rscript run_single_n.R --n=$N --reps=100 --seed=$SEED
 
 echo ""

@@ -1,0 +1,191 @@
+---
+title: "Prior Specification"
+---
+
+```{r}
+#| label: setup
+#| include: false
+source("../R/_setup.R")
+source("../R/parameters.R")
+source("../R/priors.R")
+```
+
+## Two-Prior Framework
+
+This analysis employs the two-prior framework recommended by regulatory guidance for Bayesian sample size determination:
+
+1. **Design Prior**: Reflects realistic uncertainty about the treatment effect for assurance calculation
+2. **Analysis Prior**: Used for posterior inference during the trial (typically weakly informative)
+
+::: {.callout-important}
+## Key Distinction
+The design prior represents our genuine beliefs about likely treatment effects based on prior data and clinical judgment. The analysis prior is used in the Bayesian model and is typically more skeptical to allow the data to dominate.
+:::
+
+## Design Priors
+
+Design priors are used to generate "true" treatment effects when calculating assurance (expected probability of trial success).
+
+### TMT B/A Ratio
+
+```{r}
+#| label: tmt-design-prior
+#| echo: true
+
+# Design prior for TMT treatment effect (standardized)
+tmt_design_prior <- specify_design_prior(
+  distribution = "normal",
+  mean = -0.10,   # Expected improvement in standardized units
+  sd = 0.05       # Uncertainty in the expected effect
+)
+
+print(tmt_design_prior)
+```
+
+**Justification:**
+- Prior mean (-0.10): Based on pilot observations suggesting modest improvement in cognitive function with taurine
+- Prior SD (0.05): Reflects uncertainty from small pilot sample; 95% interval covers effects from -0.20 to 0
+
+### MFIS
+
+```{r}
+#| label: mfis-design-prior
+#| echo: true
+
+# Design prior for MFIS treatment effect (standardized)
+mfis_design_prior <- specify_design_prior(
+  distribution = "normal",
+  mean = -0.20,   # Expected improvement (~3 MFIS points standardized)
+  sd = 0.10       # Uncertainty
+)
+
+print(mfis_design_prior)
+```
+
+**Justification:**
+- Prior mean (-0.20): Literature on supplements in fatigue conditions suggests small-to-moderate effects
+- Prior SD (0.10): Wider uncertainty reflecting heterogeneity in fatigue interventions
+
+### Combined Design Prior
+
+For assurance calculations, we use a combined prior averaging across outcomes:
+
+```{r}
+#| label: combined-design-prior
+#| echo: true
+
+combined_design_prior <- create_combined_design_prior(
+  tmt_effect = -0.10,
+  tmt_sd = 0.05,
+  mfis_effect = -0.20,
+  mfis_sd = 0.10
+)
+
+print(combined_design_prior)
+```
+
+## Analysis Priors
+
+The analysis priors are implemented in the Stan model and used for posterior inference.
+
+```{r}
+#| label: analysis-prior
+#| echo: true
+
+# Weakly informative analysis prior
+analysis_prior <- specify_analysis_prior(
+  type = "weakly_informative",
+  distribution = "normal",
+  mean = 0,    # Centered on no effect (skeptical)
+  sd = 1       # Weakly informative
+)
+
+print(analysis_prior)
+```
+
+### Prior Type Selection
+
+The weakly informative prior is appropriate because:
+
+1. **Regulatory acceptability**: FDA and EMA prefer analysis priors that allow data to dominate
+2. **Skepticism**: Centered on no effect, requiring data to demonstrate benefit
+3. **Flexibility**: Wide enough to permit large effects if data support them
+
+## Prior Comparison
+
+```{r}
+#| label: prior-comparison
+#| fig.cap: "Comparison of design and analysis priors"
+
+# Compare combined design prior to analysis prior
+comparison <- compare_priors(combined_design_prior, analysis_prior, plot = TRUE)
+```
+
+Key differences:
+
+| Aspect | Design Prior | Analysis Prior |
+|--------|--------------|----------------|
+| Purpose | Assurance calculation | Bayesian inference |
+| Mean | `r combined_design_prior$mean` (optimistic) | `r analysis_prior$mean` (neutral) |
+| SD | `r combined_design_prior$sd` (narrow) | `r analysis_prior$sd` (wide) |
+| 95% Interval | [`r round(qnorm(0.025, combined_design_prior$mean, combined_design_prior$sd), 3)`, `r round(qnorm(0.975, combined_design_prior$mean, combined_design_prior$sd), 3)`] | [`r round(qnorm(0.025, analysis_prior$mean, analysis_prior$sd), 3)`, `r round(qnorm(0.975, analysis_prior$mean, analysis_prior$sd), 3)`] |
+
+## Prior Effective Sample Size
+
+The prior effective sample size (ESS) quantifies prior informativeness in terms of equivalent observations.
+
+```{r}
+#| label: prior-ess
+#| echo: true
+
+# Approximate residual variance based on outcome SDs and baseline adjustment
+# After adjusting for baseline, residual SD is approximately 50-60% of total SD
+approx_residual_var <- (outcomes$tmt$sd * 0.5)^2
+
+# Calculate ESS for each prior
+design_ess <- calculate_prior_ess(combined_design_prior, approx_residual_var)
+analysis_ess <- calculate_prior_ess(analysis_prior, approx_residual_var)
+
+cat(sprintf("Prior Effective Sample Size:\n"))
+cat(sprintf("  Design prior ESS: %.1f observations\n", design_ess))
+cat(sprintf("  Analysis prior ESS: %.2f observations\n", analysis_ess))
+```
+
+::: {.callout-note}
+## Interpretation
+- Design prior ESS of `r round(design_ess, 1)` means it carries information equivalent to ~`r round(design_ess, 0)` observations
+- Analysis prior ESS of `r round(analysis_ess, 2)` confirms it is minimally informative
+- With planned sample sizes of 120-480, the analysis prior will be overwhelmed by data
+:::
+
+## Regulatory Considerations
+
+Per FDA guidance on Bayesian methods:
+
+1. **Prior justification**: Prior parameters based on pilot data and clinical literature (documented above)
+2. **Prior sensitivity**: Robustness to prior choice demonstrated in sensitivity chapter
+3. **Prior ESS**: Analysis prior ESS < 1 ensures data dominance
+4. **Skeptical comparison**: Results under skeptical priors shown in sensitivity analysis
+
+## Stan Model Priors
+
+The following priors are implemented in the Stan model (`coprimary_model_v4.stan`):
+
+```stan
+// Treatment effects (weakly informative)
+beta_treat ~ normal(0, 1);
+
+// Baseline adjustment effects
+beta_base ~ normal(0.5, 1);
+
+// Residual standard deviations (half-t)
+sigma ~ student_t(3, 0, 2.5);
+
+// Correlation matrix (LKJ prior)
+L_Omega ~ lkj_corr_cholesky(2);
+```
+
+::: {.callout-tip}
+## Bivariate Correlation Prior
+The LKJ(2) prior on the correlation matrix gently regularizes toward zero correlation while allowing strong correlations if supported by data.
+:::
